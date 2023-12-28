@@ -1,10 +1,25 @@
 import React, { useRef, useEffect, useState } from 'react';
 import * as THREE from 'three';
-import SplitPane, { SplitPaneLeft, SplitPaneRight, Divider } from './utility/SplitPane';
-import StopButton from './StopButton';
 
-const ThreeAstrologyWheel = () => {
-  const sceneRef = useRef();
+const AstrologyChart = ({data}) => {
+  const chartContainerRef = useRef();
+  // Function to initialize Three.js
+  const initThree = () => {
+    // Set up scene
+    const scene = new THREE.Scene();
+
+    // Set up camera
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.z = 5;
+
+    // Set up renderer
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    chartContainerRef.current.appendChild(renderer.domElement);
+
+    return { scene, camera, renderer };
+  };
+  // animation setup
   const [animationParams, setAnimationParams] = useState({
     isAnimating: true,
     speed: 0.005,
@@ -13,18 +28,47 @@ const ThreeAstrologyWheel = () => {
   var flipStartTime;
 
 useEffect(() => {
-  // Set up scene
-  const scene = new THREE.Scene();
+ // Initialize Three.js if not already done
+  const { scene, camera, renderer } = initThree();
+  // Set up animation
+  let flipStartTime = null;
+  const easeInOutQuad = (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t);
+  const animate = () => {
+    if (flipStartTime === null) {
+      flipStartTime = Date.now();
+    }
 
-  // Set up camera
-  const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-  camera.position.z = 5;
+    const elapsedTime = (Date.now() - flipStartTime) / 1000; // Convert to seconds
 
-  // Set up renderer
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  sceneRef.current.appendChild(renderer.domElement);
+    if (elapsedTime < animationParams.flipDuration) {
+      // Apply easing function for acceleration and deceleration
+      const progress = elapsedTime / animationParams.flipDuration;
+      const easedProgress = easeInOutQuad(progress);
 
+      // Apply rotation with easing
+      const rotationAmount = (Math.PI * easedProgress * 6) / animationParams.flipDuration; // 3 circles in 5 seconds
+      scene.rotation.y = rotationAmount;
+    } else {
+      // Stop the animation
+      scene.rotation.y = 0;
+    }
+
+    if (animationParams.isAnimating) {
+      requestAnimationFrame(animate);
+    }
+
+    renderer.render(scene, camera);
+  };
+
+  // Clear existing objects from the scene
+  while (scene.children.length > 0) {
+    scene.remove(scene.children[0]);
+  }
+
+  
+  /*
+  render the chart
+  */
   // Function to create dividing lines
   const createDividingLines = (radius, segments) => {
     const geometry = new THREE.BufferGeometry();
@@ -106,39 +150,6 @@ useEffect(() => {
     return planet;
   });
 
-  let flipStartTime = null;
-
-  // Set up animation
-  // Set up animation
-    const easeInOutQuad = (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t);
-  const animate = () => {
-    if (flipStartTime === null) {
-      flipStartTime = Date.now();
-    }
-
-    const elapsedTime = (Date.now() - flipStartTime) / 1000; // Convert to seconds
-
-    if (elapsedTime < animationParams.flipDuration) {
-      // Apply easing function for acceleration and deceleration
-      const progress = elapsedTime / animationParams.flipDuration;
-      const easedProgress = easeInOutQuad(progress);
-
-      // Apply rotation with easing
-      const rotationAmount = (Math.PI * easedProgress * 6) / animationParams.flipDuration; // 3 circles in 5 seconds
-      scene.rotation.y = rotationAmount;
-    } else {
-      // Stop the animation
-      scene.rotation.y = 0;
-    }
-
-    if (animationParams.isAnimating) {
-      requestAnimationFrame(animate);
-    }
-
-    renderer.render(scene, camera);
-  };
-
-  animate();
 
   // Easing function for acceleration and deceleration
   animate();
@@ -152,10 +163,15 @@ useEffect(() => {
 
   // Clean up on unmount
   return () => {
-    window.removeEventListener('resize', () => {});
-    sceneRef.current.removeChild(renderer.domElement);
+    while (scene.children.length > 0) {
+      scene.remove(scene.children[0]);
+    }
+    if (chartContainerRef.current) {
+          window.removeEventListener('resize', () => {});
+      chartContainerRef.current.removeChild(renderer.domElement);
+    }
   };
-}, []); // Empty dependency array to run the effect only once
+}, [data]); // Empty dependency array to run the effect only once
 
 
   const handleSpeedChange = (speed) => {
@@ -165,16 +181,8 @@ useEffect(() => {
     }));
   };
 
-  return (
-    <>
-      <div ref={sceneRef} />
-      <div>
-        <button onClick={() => handleSpeedChange(0.005)}>Normal Speed</button>
-        <button onClick={() => handleSpeedChange(0.01)}>Fast Speed</button>
-        <button onClick={() => handleSpeedChange(0.002)}>Slow Speed</button>
-      </div>
-    </>
-  );
+  return <div ref={chartContainerRef} id="chart-container"></div>;
+
 };
 
-export default ThreeAstrologyWheel;
+export default AstrologyChart;
